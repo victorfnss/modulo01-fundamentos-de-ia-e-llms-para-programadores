@@ -63,6 +63,12 @@ async function trainModel(inputXs, outputYs) {
 
 }
 
+async function predict(model, pessoaNormalizada) {
+    const tensorPessoa = tf.tensor2d([pessoaNormalizada]);
+    const predictions = model.predict(tensorPessoa);
+    const predArray = await predictions.array();
+    return predArray[0].map((prob, index) => ({ prob, index }));
+}
 // Exemplo de pessoas para treino (cada pessoa com idade, cor e localização)
 // const pessoas = [
 //     { nome: "Erick", idade: 30, cor: "azul", localizacao: "São Paulo" },
@@ -88,7 +94,7 @@ const tensorPessoasNormalizado = [
 
 // Labels das categorias a serem previstas (one-hot encoded)
 // [premium, medium, basic]
-const labelsNomes = ["premium", "medium", "basic"]; // Ordem dos labels
+const labelNomes = ["premium", "medium", "basic"]; // Ordem dos labels
 const tensorLabels = [
     [1, 0, 0], // premium - Erick
     [0, 1, 0], // medium - Ana
@@ -105,5 +111,34 @@ outputYs.print();
 
 // quanto mais, melhor!
 // assim o algoritmo consegue entender melhor os padrões complexos dos dados
-const model = trainModel(inputXs, outputYs);
+const model = await trainModel(inputXs, outputYs);
 
+const pessoa = {
+    nome: "Victor",
+    idade: 28,
+    cor: "vermelho",
+    localizacao: "São Paulo"
+}
+
+// Normaliza a idade da pessoa para o modelo entender
+// exemplo: idade_min = 25, idade_max = 40, 
+// então idade_normalizada = (28 - 25) / (40 - 25) = 0.2
+
+const pessoaNormalizada = [
+    0.2,
+    pessoa.cor === "azul" ? 1 : 0,
+    pessoa.cor === "vermelho" ? 1 : 0,
+    pessoa.cor === "verde" ? 1 : 0,
+    pessoa.localizacao === "São Paulo" ? 1 : 0,
+    pessoa.localizacao === "Rio" ? 1 : 0,
+    pessoa.localizacao === "Curitiba" ? 1 : 0
+];
+
+const predictions = await predict(model, pessoaNormalizada);
+const resultado = predictions
+    .sort((a, b) => b.prob - a.prob)
+    .map(p => `${labelNomes[p.index]}: ${(p.prob * 100).toFixed(2)}%`)
+    .join("\n");
+
+
+console.log(resultado);
