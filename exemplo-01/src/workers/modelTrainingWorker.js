@@ -4,6 +4,13 @@ import { workerEvents } from '../events/constants.js';
 console.log('Model training worker initialized');
 let _globalCtx = {};
 
+const pesos = {
+    age: 0.1,
+    price: 0.2,
+    color: 0.3,
+    category: 0.4
+}
+
 const normalize = (value, min, max) => (value - min) / (max - min) || 1;
 
 function makeContext(catalog, users) {
@@ -56,13 +63,36 @@ function makeContext(catalog, users) {
     }
 }
 
+const oneHotWeighted = (index, lenght, weight) =>
+    tf.oneHot(index, lenght).cast('float32').mul(weight);
+
+function encodeProduct(p, ctx) {
+    const price = tf.tensor1d([normalize(p.price, ctx.minPrice, ctx.maxPrice) * pesos.price]);
+    const age = tf.tensor1d([ctx.midAgePerProduct[p.name] ?? 0.5 * pesos.age]);
+
+    const category = oneHotWeighted(ctx.categoryIndex[p.category], ctx.numCategories, pesos.category);
+    const color = oneHotWeighted(ctx.colorIndex[p.color], ctx.numColors, pesos.color);
+
+    return tf.concat([price, age, color, category]);
+}
+
 async function trainModel({ users }) {
     console.log('Training model with users:', users)
 
     postMessage({ type: workerEvents.progressUpdate, progress: { progress: 50 } });
     const catalog = await (await fetch('/data/products.json')).json();
     const ctx = makeContext(catalog, users);
-    debugger;
+
+    ctx.productVectors = catalog.map(p => {
+        return {
+            name: p.name,
+            meta: { ...p },
+            vector: encodeProduct(p, ctx).dataSync()
+        }
+    })
+    debugger
+
+    _globalCtx = ctx;
     postMessage({
         type: workerEvents.trainingLog,
         epoch: 1,
