@@ -4,11 +4,65 @@ import { workerEvents } from '../events/constants.js';
 console.log('Model training worker initialized');
 let _globalCtx = {};
 
+const normalize = (value, min, max) => (value - min) / (max - min) || 1;
+
+function makeContext(catalog, users) {
+    const ages = users.map(u => u.age);
+    const maxAge = Math.max(...ages);
+    const minAge = Math.min(...ages);
+
+    const prices = catalog.map(p => p.price);
+    const maxPrice = Math.max(...prices);
+    const minPrice = Math.min(...prices);
+
+    const colors = [...new Set(catalog.map(p => p.color))];
+    const categories = [...new Set(catalog.map(p => p.category))];
+
+    const colorIndex = Object.fromEntries(colors.map((color, index) => [color, index]));
+    const categoryIndex = Object.fromEntries(categories.map((category, index) => [category, index]));
+
+    const midAge = (maxAge + minAge) / 2;
+    const ageSums = {}
+    const ageCounts = {}
+
+    users.forEach(user => {
+        user.purchases.forEach(p => {
+            ageSums[p.name] = (ageSums[p.name] || 0) + user.age;
+            ageCounts[p.name] = (ageCounts[p.name] || 0) + 1;
+        });
+    });
+
+    const midAgePerProduct = Object.fromEntries(
+        catalog.map(product => {
+            const avgAge = ageCounts[product.name] ? ageSums[product.name] / ageCounts[product.name] : midAge;
+            return [product.name, normalize(avgAge, minAge, maxAge)];
+        })
+    );
+
+    return {
+        catalog,
+        colorIndex,
+        categoryIndex,
+        midAgePerProduct,
+        midAge,
+        maxAge,
+        minAge,
+        maxPrice,
+        minPrice,
+        numColors: colors.length,
+        numCategories: categories.length,
+        users,
+        dimentions: 2 + colors.length + categories.length // age, price, color, category
+    }
+}
 
 async function trainModel({ users }) {
     console.log('Training model with users:', users)
 
     postMessage({ type: workerEvents.progressUpdate, progress: { progress: 50 } });
+    const catalog = await (await fetch('/data/products.json')).json();
+    const ctx = makeContext(catalog, users);
+    debugger;
     postMessage({
         type: workerEvents.trainingLog,
         epoch: 1,
