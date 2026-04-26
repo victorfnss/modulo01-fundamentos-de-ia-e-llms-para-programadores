@@ -86,13 +86,19 @@ function encodeUser(user, ctx) {
         ).mean(0)
             .reshape([1, ctx.dimentions]);
     }
+    return tf.concat1d([
+        tf.zeros([1]),
+        tf.tensor1d([normalize(user.age, ctx.minAge, ctx.maxAge) * pesos.age]),
+        tf.zeros([ctx.numColors]),
+        tf.zeros([ctx.numCategories])
+    ]).reshape([1, ctx.dimentions])
 }
 
 function createTrainingData(ctx) {
     const inputs = [];
     const labels = [];
     ctx.users
-        .filter(user => user.purchases.length > 0)
+        .filter(user => user.purchases.length)
         .forEach(user => {
             const userVector = encodeUser(user, ctx).dataSync();
             ctx.products.forEach(product => {
@@ -177,19 +183,55 @@ async function trainModel({ users }) {
 
 
 }
-function recommend(user, ctx) {
-    console.log('will recommend for user:', user)
-    // postMessage({
-    //     type: workerEvents.recommend,
-    //     user,
-    //     recommendations: []
-    // });
+function recommend({ user }) {
+    if (!_model) return;
+    const ctx = _globalCtx;
+
+    // converte o usuario fornecido no vetor de features codificados
+    // (preço ignorado, idade normalizada, categoria e cor em one-hot)
+    // transforma as informações do usuário no mesmo formato numérico que usamos no treinamento
+
+    const userVector = encodeUser(user, ctx).dataSync();
+
+    // Em aplicações reais:
+    //  Armazene todos os vetores de produtos em um banco de dados vetorial (como Postgres, Neo4j ou Pinecone)
+    //  Consulta: Encontre os 200 produtos mais próximos do vetor do usuário
+    //  Execute _model.predict() apenas nesses produtos
+
+    // cria um vetor de entrada para cada produto, 
+    // combinando o vetor do usuário com o vetor do produto
+    // o modelo irá prever o score de relevância do produto para o usuário
+
+    const inputs = ctx.productVectors.map(({ vector }) => {
+        return [...userVector, ...vector]
+    })
+
+    const inputsTensor = tf.tensor2d(inputs);
+    const predictions = _model.predict(inputsTensor);
+
+    const scores = predictions.dataSync();
+
+    const recommendations = ctx.productVectors.map((product, index) => {
+        return {
+            ...product.meta,
+            name: product.name,
+            score: scores[index]
+        }
+    })
+
+    const sortedItems = recommendations.sort((a, b) => b.score - a.score);
+
+    postMessage({
+        type: workerEvents.recommend,
+        user,
+        recommendations: sortedItems
+    });
 }
 
 
 const handlers = {
     [workerEvents.trainModel]: trainModel,
-    [workerEvents.recommend]: d => recommend(d.user, _globalCtx),
+    [workerEvents.recommend]: recommend,
 };
 
 self.onmessage = e => {
