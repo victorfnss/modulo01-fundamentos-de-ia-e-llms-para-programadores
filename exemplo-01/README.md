@@ -1,6 +1,6 @@
 # E-commerce Recommendation System
 
-A web application that displays user profiles and product listings, with the ability to track user purchases for future machine learning recommendations using TensorFlow.js.
+A web application that displays user profiles and product listings, applying a **machine learning recommendation engine using TensorFlow.js**. It tracks user purchases to dynamically build recommendations tailored to their profiles.
 
 ## Project Structure
 
@@ -10,16 +10,17 @@ A web application that displays user profiles and product listings, with the abi
 - `controller/` - Contains controllers to connect views and services
 - `service/` - Contains business logic for data handling
 - `data/` - Contains JSON files with user and product data
+- `workers/` - Contains Web Workers (like `modelTrainingWorker.js`) that handle heavy ML operations off the main thread.
 
 ## Setup and Run
 
 1. Install dependencies:
-```
+```bash
 npm install
 ```
 
 2. Start the application:
-```
+```bash
 npm start
 ```
 
@@ -31,9 +32,5 @@ npm start
 - Past purchase history display
 - Product listing with "Buy Now" functionality
 - Purchase tracking using sessionStorage
-
-## Future Enhancements
-
-- TensorFlow.js-based recommendation engine
-- User similarity analysis
-- Product recommendation based on purchase history
+- **Neural Network Training:** Uses TensorFlow.js in a Web Worker to encode products and users based on attributes (price, category, color, age).
+- **Dynamic Product Recommendations:** Calculates prediction scores based on the trained model and sorts products to recommend the most relevant ones.
